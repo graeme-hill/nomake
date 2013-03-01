@@ -1,0 +1,151 @@
+#!/usr/bin/python
+import os, re, subprocess, shutil, sys
+
+# Config
+MAKEFILE_NAME = 'Makefile'
+SOURCE_DIRECTORY = 'src'
+OBJ_EXTENSIONS = ['o']
+C_EXTENSIONS = ['c']
+CPP_EXTENSIONS = ['C', 'cxx', 'cpp', 'CPP', 'CXX', 'cc', 'CC']
+OBJC_EXTENSIONS = ['m', 'M']
+OBJCPP_EXTENSIONS = ['mm', 'MM']
+HEADER_EXTENSIONS = ['h', 'H', 'hh', 'HH', 'HPP', 'hpp', 'hxx', 'HXX']
+SOURCE_EXTENSIONS = C_EXTENSIONS + CPP_EXTENSIONS + OBJC_EXTENSIONS + OBJCPP_EXTENSIONS
+COMPILER = 'clang'
+OBJ_DIR = 'obj'
+APP_NAME = 'myapp'
+BIN_DIR = 'bin'
+
+# Constant regular expressions
+EMPTY_OR_WS = re.compile('^\\s*$')  
+
+def normalize_path(path):
+    return path[2:] if path.startswith('./') else path
+
+class Language(object):
+    def __init__(self, name, extensions, precedence):
+        self.name = name
+        self.extensions = extensions
+        self.precedence = precedence
+
+class FileInfo(object):
+    def __init__(self, path):
+        self.path = normalize_path(path)
+        self.timestamp = os.path.getmtime(path)
+
+class BuildContext(object):
+    def __init__(self, base_dir):
+        self.base_dir = base_dir
+        self.compiler = COMPILER
+        self.app_name = APP_NAME
+        self.src_dir = normalize_path(os.path.join(self.base_dir, SOURCE_DIRECTORY))
+        self.obj_dir = normalize_path(os.path.join(self.base_dir, OBJ_DIR))
+        self.bin_dir = normalize_path(os.path.join(self.base_dir, BIN_DIR))
+        self.exe_path = normalize_path(os.path.join(self.bin_dir, self.app_name))
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, type, value, traceback):
+        pass
+
+    def anything_changed_since_last_build(self, source_files):
+        if os.path.exists(self.exe_path):
+            last_build = os.path.getmtime(self.exe_path)
+            for f in source_files:
+                if f.timestamp >= last_build:
+                    return True
+            return False
+        return True
+
+    def find_files(self, directory, extensions):
+        files = []
+        if os.path.isdir(directory):
+            for child in [os.path.join(directory, f) for f in os.listdir(directory)]:
+                if os.path.isfile(child):
+                    if child.split('.')[-1] in extensions:
+                        files.append(FileInfo(child))
+                else:
+                    files += find_sources(child)
+        return files
+
+    def parse_dep_line(self, dep_line):
+        obj = dep_line[:dep_line.find(':')]
+        sources = dep_line.split(' ')[1:]
+        return (normalize_path(os.path.join(self.obj_dir, obj)), sources)
+
+    def line_empty(self, line):
+        return EMPTY_OR_WS.match(line) != None
+
+    def get_dependencies(self, sources):
+        cmd = [self.compiler, '-MM'] + [s.path for s in sources]
+        output = subprocess.Popen(cmd, stdout=subprocess.PIPE).stdout.read()
+        return [self.parse_dep_line(line) for line in output.split('\n') if not self.line_empty(line)]
+
+    def make_dir(self, directory):
+        if not os.path.exists(directory):
+            os.makedirs(directory)
+
+    def kill_dir(self, directory):
+        if os.path.isdir(directory):
+            shutil.rmtree(directory)
+
+    def most_recent(self, files, timestamps):
+        max_ts = None
+        for f in files:
+            ts = timestamps[f]
+            if max_ts == None or ts > max_ts:
+                max_ts = ts
+        return max_ts
+
+    def compile(self, obj_groups, src_timestamps, obj_timestamps):
+        self.make_dir(self.obj_dir)
+        for obj, sources in obj_groups:
+            most_recent = self.most_recent(sources, src_timestamps)
+            obj_name = obj[obj.rfind('/')+1:obj.rfind('.')]
+            main_src = next(src for src in sources if src[src.rfind('/')+1:src.find('.')] == obj_name)
+            if obj not in obj_timestamps or obj_timestamps[obj] <= most_recent:
+                cmd = "%s -c %s -o %s" % (self.compiler, main_src, obj)
+                print(cmd)
+                if os.system(cmd) != 0:
+                    return False
+        return True
+
+    def link(self, obj_groups):
+        self.make_dir(self.bin_dir)
+        objs = [obj for obj, sources in obj_groups]
+        cmd = "%s -o %s %s" % (self.compiler, self.exe_path, ' '.join(objs))
+        print(cmd)
+        return os.system(cmd) == 0
+
+    def build(self):
+        obj_files = self.find_files(self.obj_dir, OBJ_EXTENSIONS)
+        src_files = self.find_files(self.src_dir, SOURCE_EXTENSIONS)
+        header_files = self.find_files(self.src_dir, HEADER_EXTENSIONS)
+
+        obj_timestamps = {o.path: o.timestamp for o in obj_files}
+        src_timestamps = {s.path: s.timestamp for s in (src_files + header_files)}
+
+        obj_groups = self.get_dependencies(src_files)
+        if self.anything_changed_since_last_build(src_files + header_files):
+            if self.compile(obj_groups, src_timestamps, obj_timestamps):
+                if self.link(obj_groups):
+                    return True
+        else:
+            return True
+        return False
+
+    def run(self):
+        os.system('./%s' % self.exe_path)
+
+    def clean(self):
+        self.kill_dir(self.obj_dir)
+        self.kill_dir(self.bin_dir)
+
+if __name__ == '__main__':
+    with BuildContext('.') as context:
+        if len(sys.argv) > 1:
+            if sys.argv[1] == 'clean':
+                context.clean()
+        elif context.build():
+            context.run()
