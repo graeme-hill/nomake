@@ -11,13 +11,14 @@ OBJC_EXTENSIONS = ['m', 'M']
 OBJCPP_EXTENSIONS = ['mm', 'MM']
 HEADER_EXTENSIONS = ['h', 'H', 'hh', 'HH', 'HPP', 'hpp', 'hxx', 'HXX']
 SOURCE_EXTENSIONS = C_EXTENSIONS + CPP_EXTENSIONS + OBJC_EXTENSIONS + OBJCPP_EXTENSIONS
-COMPILER = 'clang'
+COMPILER = 'clang++'
 OBJ_DIR = 'obj'
 APP_NAME = 'myapp'
 BIN_DIR = 'bin'
 
 # Constant regular expressions
-EMPTY_OR_WS = re.compile('^\\s*$')  
+EMPTY_OR_WS = re.compile('^\\s*$')
+WHITESPACE = re.compile('\\s+')
 
 def normalize_path(path):
     return path[2:] if path.startswith('./') else path
@@ -71,7 +72,7 @@ class BuildContext(object):
 
     def parse_dep_line(self, dep_line):
         obj = dep_line[:dep_line.find(':')]
-        sources = dep_line.split(' ')[1:]
+        sources = WHITESPACE.split(dep_line)[1:]
         return (normalize_path(os.path.join(self.obj_dir, obj)), sources)
 
     def line_empty(self, line):
@@ -79,7 +80,7 @@ class BuildContext(object):
 
     def get_dependencies(self, sources):
         cmd = [self.compiler, '-MM'] + [s.path for s in sources]
-        output = subprocess.Popen(cmd, stdout=subprocess.PIPE).stdout.read()
+        output = subprocess.Popen(cmd, stdout=subprocess.PIPE).stdout.read().replace('\\\n', '')
         return [self.parse_dep_line(line) for line in output.split('\n') if not self.line_empty(line)]
 
     def make_dir(self, directory):
@@ -105,7 +106,7 @@ class BuildContext(object):
             obj_name = obj[obj.rfind('/')+1:obj.rfind('.')]
             main_src = next(src for src in sources if src[src.rfind('/')+1:src.find('.')] == obj_name)
             if obj not in obj_timestamps or obj_timestamps[obj] <= most_recent:
-                cmd = "%s -c %s -o %s" % (self.compiler, main_src, obj)
+                cmd = "%s -Wall -Wextra -Werror -c %s -o %s" % (self.compiler, main_src, obj)
                 print(cmd)
                 if os.system(cmd) != 0:
                     return False

@@ -2,4 +2,4 @@
  
 int get_two() {
 	return 2;
-}
+} 
