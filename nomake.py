@@ -1,5 +1,5 @@
 #!/usr/bin/python
-import os, re, subprocess, shutil, sys
+import os, re, subprocess, shutil, sys, posixpath
 
 class Parameter(object):
     def __init__(self, long_name, short_name, description, action):
@@ -19,7 +19,7 @@ class BuildOptions(object):
 
     def set_target(self, t): self.target = t
     def set_compiler(self, c): self.compiler = c
-    def set_modules(self, m): self.modules = max_col_1_chars
+    def set_modules(self, m): self.modules = m
     def set_get_help(self, gh): self.get_help = gh
     def set_clean(self, c): self.clean = c
     def set_run(self, r): self.run = r
@@ -40,12 +40,12 @@ class BuildContext(object):
         self.base_dir = '.'
         self.target = options.target
         self.compiler = options.compiler
-        self.modules = self.get_modules_for_target(self.target)
+        self.modules = options.modules if len(options.modules) > 0 else self.get_modules_for_target(self.target)
         self.app_name = APP_NAME
-        self.src_dir = normalize_path(os.path.join(self.base_dir, SOURCE_DIRECTORY))
-        self.obj_dir = normalize_path(os.path.join(self.base_dir, OBJ_DIR))
-        self.bin_dir = normalize_path(os.path.join(self.base_dir, BIN_DIR))
-        self.exe_path = normalize_path(os.path.join(self.bin_dir, self.app_name))
+        self.src_dir = join_paths(self.base_dir, SOURCE_DIRECTORY)
+        self.obj_dir = join_paths(self.base_dir, OBJ_DIR)
+        self.bin_dir = join_paths(self.base_dir, BIN_DIR)
+        self.exe_path = join_paths(self.bin_dir, self.app_name)
 
     def __enter__(self):
         return self
@@ -70,18 +70,18 @@ class BuildContext(object):
             return directory != MODULES_DIRECTORY or fname in self.modules
         files = []
         if os.path.isdir(directory):
-            for child in [os.path.join(directory, f) for f in os.listdir(directory) if is_included(f)]:
+            for child in [join_paths(directory, f) for f in os.listdir(directory) if is_included(f)]:
                 if os.path.isfile(child):
                     if child.split('.')[-1] in extensions:
                         files.append(FileInfo(child))
                 else:
-                    files += find_sources(child)
+                    files += self.find_files(child, extensions)
         return files
 
     def parse_dep_line(self, dep_line):
         obj = dep_line[:dep_line.find(':')]
-        sources = WHITESPACE.split(dep_line)[1:]
-        return (normalize_path(os.path.join(self.obj_dir, obj)), sources)
+        sources = [normalize_path(path) for path in WHITESPACE.split(dep_line)[1:]]
+        return (join_paths(self.obj_dir, obj), sources)
 
     def line_empty(self, line):
         return EMPTY_OR_WS.match(line) != None
@@ -163,7 +163,10 @@ def require_single_arg(values):
         return values[0]
 
 def normalize_path(path):
-    return path[2:] if path.startswith('./') else path
+    return posixpath.normpath(path)
+
+def join_paths(a, b):
+    return normalize_path(os.path.join(a, b))
 
 def print_help():
     print('nomake - A really simple build system. Usage:\n')

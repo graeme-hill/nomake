@@ -2,8 +2,8 @@
 
 void path_normalize(char *in, char *out) {
 	char ch;
-	int i;
+	int i = 0;
 	while ((ch = in[i++]) != '\0')
-		out[i] = in[i];
+		out[i-1] = in[i-1];
 	out[i] = '\0'; 
 }
