@@ -1,5 +1,26 @@
 #!/usr/bin/python
-import os, re, subprocess, shutil, sys, posixpath
+
+# Copyright (C) 2013 Graeme Hill
+#
+# Permission is hereby granted, free of charge, to any person obtaining a copy
+# of this software and associated documentation files (the "Software"), to deal 
+# in the Software without restriction, including without limitation the rights
+# to use, copy, modify, merge, publish, distribute, sublicense, and/or sell 
+# copies of the Software, and to permit persons to whom the Software is 
+# furnished to do so, subject to the following conditions:
+#
+# The above copyright notice and this permission notice shall be included in 
+# all copies or substantial portions of the Software.
+#
+# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR 
+# IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, 
+# FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE 
+# AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER 
+# LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+# OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+# SOFTWARE.
+
+import os, re, subprocess, shutil, sys
 
 class Parameter(object):
     def __init__(self, long_name, short_name, description, action):
@@ -163,7 +184,7 @@ def require_single_arg(values):
         return values[0]
 
 def normalize_path(path):
-    return posixpath.normpath(path)
+    return os.path.normpath(path)
 
 def join_paths(a, b):
     return normalize_path(os.path.join(a, b))
@@ -212,6 +233,9 @@ def parse_args(args):
 # Config
 SOURCE_DIRECTORY = 'src'
 MODULES_DIRECTORY = 'src/modules'
+RESOURCE_DIRECTORY = 'res'
+LIB_DIRECTORY = 'lib'
+INCLUDE_DIRECTORY = 'include'
 OBJ_EXTENSIONS = ['o']
 C_EXTENSIONS = ['c']
 CPP_EXTENSIONS = ['C', 'cxx', 'cpp', 'CPP', 'CXX', 'cc', 'CC']
