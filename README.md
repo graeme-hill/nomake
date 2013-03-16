@@ -1,5 +1,8 @@
 # nomake
 
+**Note:** The script is currently unfinished and does not behave exactly as
+described below. This documentation is more of a spec at this point.
+
 Nomake is a simple build system that uses folder conventions and a module
 system instead of project files or make files to compile a project. The goal is
 not just to make build configuration easier, but also to change the way the
