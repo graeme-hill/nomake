@@ -109,7 +109,8 @@ class BuildContext(object):
 
     def get_dependencies(self, sources):
         cmd = [self.compiler, '-MM'] + [s.path for s in sources]
-        output = subprocess.Popen(cmd, stdout=subprocess.PIPE).stdout.read().replace('\\\n', '')
+        outdata, errdata = subprocess.Popen(cmd, stdout=subprocess.PIPE).communicate()
+        output = outdata.decode('utf-8').replace('\\\n', '')
         return [self.parse_dep_line(line) for line in output.split('\n') if not self.line_empty(line)]
 
     def make_dir(self, directory):
@@ -252,27 +253,27 @@ PARAMETERS = [
         long_name = 'modules',
         short_name = 'm',
         description = 'List of modules to include in build.',
-        action = lambda(opt, values): opt.set_modules(values)),
+        action = lambda opt, values: opt.set_modules(values)),
     Parameter(
         long_name = 'compiler',
         short_name = 'c',
         description = 'Specific compiler to use on all source files.',
-        action = lambda(opt, values): opt.set_compiler(require_single_arg(values))),
+        action = lambda opt, values: opt.set_compiler(require_single_arg(values))),
     Parameter(
         long_name = 'help',
         short_name = 'h',
         description = 'Display help text.',
-        action = lambda(opt, values): opt.set_get_help(True)),
+        action = lambda opt, values: opt.set_get_help(True)),
     Parameter(
         long_name = 'clean',
         short_name = 'C',
         description = 'Delete previous build output.',
-        action = lambda(opt, values): opt.set_clean(True)),
+        action = lambda opt, values: opt.set_clean(True)),
     Parameter(
         long_name = 'run',
         short_name = 'r',
         description = 'Run program after compiling.',
-        action = lambda(opt, values): opt.set_run(True))
+        action = lambda opt, values: opt.set_run(True))
 ]
 PARAMETERS_BY_LONG_NAME = {p.long_name: p for p in PARAMETERS}
 PARAMETERS_BY_SHORT_NAME = {p.short_name: p for p in PARAMETERS}
