@@ -22,28 +22,43 @@
 
 import os, re, subprocess, shutil, sys
 
+SOURCE_DIRECTORY = 'src'
+MODULES_DIRECTORY = 'src/modules'
+RESOURCE_DIRECTORY = 'res'
+LIB_DIRECTORY = 'lib'
+INCLUDE_DIRECTORY = 'include'
+OBJ_EXTENSIONS = ['o']
+C_EXTENSIONS = ['c']
+CPP_EXTENSIONS = ['C', 'cxx', 'cpp', 'CPP', 'CXX', 'cc', 'CC']
+OBJC_EXTENSIONS = ['m', 'M']
+OBJCPP_EXTENSIONS = ['mm', 'MM']
+HEADER_EXTENSIONS = ['h', 'H', 'hh', 'HH', 'HPP', 'hpp', 'hxx', 'HXX']
+SOURCE_EXTENSIONS = C_EXTENSIONS + CPP_EXTENSIONS + OBJC_EXTENSIONS + OBJCPP_EXTENSIONS
+DEFAULT_COMPILER = 'clang++'
+OBJ_DIR = 'obj'
+APP_NAME = 'myapp'
+BIN_DIR = 'bin'
+
+class BuildOptions(object):
+    def __init__(self):
+        self.compiler = None
+        self.modules = []
+        self.get_help = False
+        self.run = False
+        self.clean = False
+
+        def set_compiler(self, c): self.compiler = c
+        def set_modules(self, m): self.modules = m
+        def set_get_help(self, gh): self.get_help = gh
+        def set_clean(self, c): self.clean = c
+        def set_run(self, r): self.run = r
+
 class Parameter(object):
     def __init__(self, long_name, short_name, description, action):
         self.long_name = long_name
         self.short_name = short_name
         self.description = description
         self.action = action
-
-class BuildOptions(object):
-    def __init__(self):
-        self.target = None
-        self.compiler = DEFAULT_COMPILER
-        self.modules = []
-        self.get_help = False
-        self.run = False
-        self.clean = False
-
-    def set_target(self, t): self.target = t
-    def set_compiler(self, c): self.compiler = c
-    def set_modules(self, m): self.modules = m
-    def set_get_help(self, gh): self.get_help = gh
-    def set_clean(self, c): self.clean = c
-    def set_run(self, r): self.run = r
 
 class Language(object):
     def __init__(self, name, extensions, precedence):
@@ -59,9 +74,8 @@ class FileInfo(object):
 class BuildContext(object):
     def __init__(self, options):
         self.base_dir = '.'
-        self.target = options.target
         self.compiler = options.compiler
-        self.modules = options.modules if len(options.modules) > 0 else self.get_modules_for_target(self.target)
+        self.modules = options.modules
         self.app_name = APP_NAME
         self.src_dir = join_paths(self.base_dir, SOURCE_DIRECTORY)
         self.obj_dir = join_paths(self.base_dir, OBJ_DIR)
@@ -109,6 +123,7 @@ class BuildContext(object):
 
     def get_dependencies(self, sources):
         cmd = [self.compiler, '-MM'] + [s.path for s in sources]
+        print (cmd)
         outdata, errdata = subprocess.Popen(cmd, stdout=subprocess.PIPE).communicate()
         output = outdata.decode('utf-8').replace('\\\n', '')
         return [self.parse_dep_line(line) for line in output.split('\n') if not self.line_empty(line)]
@@ -150,6 +165,7 @@ class BuildContext(object):
         return os.system(cmd) == 0
 
     def build(self):
+        print(self.__dict__)
         obj_files = self.find_files(self.obj_dir, OBJ_EXTENSIONS)
         src_files = self.find_files(self.src_dir, SOURCE_EXTENSIONS)
         header_files = self.find_files(self.src_dir, HEADER_EXTENSIONS)
@@ -205,7 +221,7 @@ def print_help():
 
 def get_arg_info(args):
     params = {}
-    target = None
+    targetName = None
     param_type = None
     for arg in args:
         if arg.startswith('--'):
@@ -215,39 +231,39 @@ def get_arg_info(args):
             param_type = PARAMETERS_BY_SHORT_NAME[arg[1:]].long_name
             params[param_type] = []
         elif param_type == None:
-            if target == None:
-                target = arg
+            if targetName == None:
+                targetName = arg
             else:
                 invalid_args()
         else:
             params[param_type].append(arg)
+    
+    target = None if targetName == None else load_target_by_name(targetName)
+
     return (target, params)
+
+def load_target_by_name(targetName):
+    with open('./config.py', 'r') as configReader:
+        config = eval(configReader.read())
+    if not (targetName in config):
+        fail('Target "%s" not found in config' % targetName)
+    return config[targetName]
 
 def parse_args(args):
     target, arg_dict = get_arg_info(args)
     opt = BuildOptions()
-    opt.target = target
     for param_key in arg_dict:
         PARAMETERS_BY_LONG_NAME[param_key].action((opt, arg_dict[param_key]))
+    if target != None:
+        if len(opt.modules) == 0: opt.modules = target['modules']
+        if opt.compiler == None: 
+            if 'compiler' in target:
+                opt.compiler = target['compiler']
+            else:
+                opt.compiler = None
     return opt
 
 # Config
-SOURCE_DIRECTORY = 'src'
-MODULES_DIRECTORY = 'src/modules'
-RESOURCE_DIRECTORY = 'res'
-LIB_DIRECTORY = 'lib'
-INCLUDE_DIRECTORY = 'include'
-OBJ_EXTENSIONS = ['o']
-C_EXTENSIONS = ['c']
-CPP_EXTENSIONS = ['C', 'cxx', 'cpp', 'CPP', 'CXX', 'cc', 'CC']
-OBJC_EXTENSIONS = ['m', 'M']
-OBJCPP_EXTENSIONS = ['mm', 'MM']
-HEADER_EXTENSIONS = ['h', 'H', 'hh', 'HH', 'HPP', 'hpp', 'hxx', 'HXX']
-SOURCE_EXTENSIONS = C_EXTENSIONS + CPP_EXTENSIONS + OBJC_EXTENSIONS + OBJCPP_EXTENSIONS
-DEFAULT_COMPILER = 'clang++'
-OBJ_DIR = 'obj'
-APP_NAME = 'myapp'
-BIN_DIR = 'bin'
 PARAMETERS = [
     Parameter(
         long_name = 'modules',
